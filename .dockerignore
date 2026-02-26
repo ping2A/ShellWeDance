@@ -1,0 +1,29 @@
+# Build artifacts (rebuilt in container)
+target/
+wasm/pkg/
+
+# Git and IDE
+.git
+.gitignore
+.cursor
+*.swp
+*~
+
+# Docs and examples (not needed for WASM app)
+docs/
+examples/
+*.md
+!indicators/README.md
+
+# CI and dev scripts (build script not needed in image)
+.github/
+scripts/benchmark.sh
+scripts/test.sh
+scripts/build.sh
+scripts/generate_logs.sh
+scripts/inject_rules_into_index.sh
+
+# Misc
+Dockerfile
+.dockerignore
+LICENSE

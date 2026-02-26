@@ -48,6 +48,26 @@ cargo build --release
 ./target/release/sigma-zero --rules-dir /path/to/sigma-rules --logs ./examples/logs
 ```
 
+### Docker
+
+Run the WASM app and CLI anywhere with Docker (no Rust or wasm-pack needed on the host):
+
+```bash
+# Build the image (builds CLI + WASM, serves the UI with nginx)
+docker build -t shell-we-dance .
+
+# Run and open http://localhost:8080
+docker run -p 8080:80 shell-we-dance
+```
+
+The container serves the browser UI on port 80 (mapped to 8080 above). The `shell-we-dance` CLI is also installed in the container for scripting, e.g.:
+
+```bash
+docker run --rm shell-we-dance shell-we-dance -r /usr/share/nginx/html/indicators -c "powershell -enc ..."
+```
+
+(Indicators in the image live under `/usr/share/nginx/html/indicators`.)
+
 ## Usage
 
 ### PowerShell command-line analysis (`shell-we-dance`)

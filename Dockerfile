@@ -24,8 +24,8 @@ COPY scripts ./scripts
 # Build release binaries (CLI)
 RUN cargo build --release
 
-# Build WASM for the browser UI (output to wasm/pkg)
-RUN wasm-pack build wasm --out-dir wasm/pkg --target web
+# Build WASM for the browser UI (output to wasm/pkg; --out-dir is relative to the crate, not WORKDIR)
+RUN wasm-pack build wasm --out-dir pkg --target web
 
 # Copy indicators into wasm/indicators and generate manifest.json
 RUN bash scripts/generate_rules_yml.sh

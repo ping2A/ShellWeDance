@@ -1,17 +1,11 @@
 //! PowerShell command-line analyzer using psexposed-style indicators.
-//! Optionally decodes -enc/-encodedcommand and evaluates decoded content with Sigma rules.
+//! Decodes -enc/-encodedcommand and matches indicators on raw and decoded text.
 
 use serde::Serialize;
 
 #[cfg(not(target_arch = "wasm32"))]
-use std::collections::HashMap;
-#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 
-#[cfg(not(target_arch = "wasm32"))]
-use crate::engine::SigmaEngine;
-#[cfg(not(target_arch = "wasm32"))]
-use crate::models::LogEntry;
 use crate::ps_decode::decode_encoded_command;
 use crate::ps_indicator::{
     load_indicators_from_yaml_strings_with_errors, load_indicators_from_yaml_strings,
@@ -34,14 +28,6 @@ pub struct PsMatch {
     /// Where this matched: "command_line" or "decoded" (when -enc was decoded)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub matched_against: Option<String>,
-}
-
-/// Summary of a Sigma rule match (decoded content analysis)
-#[derive(Debug, Clone, Serialize)]
-pub struct SigmaMatchInfo {
-    pub rule_id: Option<String>,
-    pub rule_title: String,
-    pub level: Option<String>,
 }
 
 /// Full indicator metadata for display in UI (name, description, regex, score, tactic, technique).
@@ -71,17 +57,11 @@ pub struct PsAnalysisResult {
     /// Decoded script when -enc/-encodedcommand was present (truncated for output)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decoded_content: Option<String>,
-    /// Sigma rule matches on the decoded content (when decoding succeeded and Sigma rules loaded)
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub sigma_matches: Vec<SigmaMatchInfo>,
 }
 
 /// Engine that evaluates PowerShell command lines against psexposed indicators
-/// and optionally against Sigma rules on decoded -enc content
 pub struct PsAnalyzer {
     indicators: Vec<CompiledPsIndicator>,
-    #[cfg(not(target_arch = "wasm32"))]
-    sigma_engine: Option<SigmaEngine>,
 }
 
 impl PsAnalyzer {
@@ -89,34 +69,21 @@ impl PsAnalyzer {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn from_dir(dir: &Path) -> anyhow::Result<Self> {
         let indicators = load_indicators_from_dir(dir)?;
-        Ok(Self {
-            indicators,
-            sigma_engine: None,
-        })
+        Ok(Self { indicators })
     }
 
     /// Like `from_dir` but returns per-file load results for CLI debug (success/failure per rule file).
     #[cfg(not(target_arch = "wasm32"))]
     pub fn from_dir_with_errors(dir: &Path) -> anyhow::Result<(Self, DirLoadResult)> {
         let (indicators, results) = load_indicators_from_dir_with_errors(dir)?;
-        Ok((
-            Self {
-                indicators,
-                sigma_engine: None,
-            },
-            results,
-        ))
+        Ok((Self { indicators }, results))
     }
 
     /// Build analyzer from in-memory YAML strings (one indicator document per string).
-    /// Used by WASM when indicators are embedded or passed from JS.
+    /// Used by WASM when indicators are fetched from the browser.
     pub fn from_yaml_strings(yaml_strings: &[&str]) -> anyhow::Result<Self> {
         let indicators = load_indicators_from_yaml_strings(yaml_strings)?;
-        Ok(Self {
-            indicators,
-            #[cfg(not(target_arch = "wasm32"))]
-            sigma_engine: None,
-        })
+        Ok(Self { indicators })
     }
 
     /// Like `from_yaml_strings` but returns per-rule load errors (index, message) for documents that failed to parse.
@@ -124,28 +91,10 @@ impl PsAnalyzer {
         yaml_strings: &[&str],
     ) -> (Self, Vec<(usize, String)>) {
         let (indicators, errors) = load_indicators_from_yaml_strings_with_errors(yaml_strings);
-        let analyzer = Self {
-            indicators,
-            #[cfg(not(target_arch = "wasm32"))]
-            sigma_engine: None,
-        };
-        (analyzer, errors)
+        (Self { indicators }, errors)
     }
 
-    /// Build analyzer with both psexposed indicators and Sigma rules.
-    /// Decoded -enc content is evaluated against Sigma rules (log field: CommandLine).
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn from_dirs(indicators_dir: &Path, sigma_rules_dir: &Path) -> anyhow::Result<Self> {
-        let indicators = load_indicators_from_dir(indicators_dir)?;
-        let mut sigma_engine = SigmaEngine::new(None);
-        sigma_engine.load_rules(sigma_rules_dir)?;
-        Ok(Self {
-            indicators,
-            sigma_engine: Some(sigma_engine),
-        })
-    }
-
-    /// Analyze a single command line; returns indicator matches (on raw + decoded when -enc present), optional decoded content, and Sigma matches on decoded content
+    /// Analyze a single command line; returns indicator matches on raw + decoded when -enc present.
     pub fn analyze(&self, command_line: &str) -> PsAnalysisResult {
         let mut matches = self.run_indicators(command_line, Some("command_line"));
         let decoded = decode_encoded_command(command_line);
@@ -153,7 +102,6 @@ impl PsAnalyzer {
             .as_ref()
             .map(|s| truncate_for_display(s, 2000));
 
-        // Run the same indicators on decoded content; add matches we don't already have (by indicator name)
         if let Some(ref dec) = decoded {
             if !dec.is_empty() {
                 let decoded_matches = self.run_indicators(dec, Some("decoded"));
@@ -169,7 +117,6 @@ impl PsAnalyzer {
 
         let total_score = matches.iter().map(|m| m.basescore).sum();
         let is_suspicious = !matches.is_empty();
-        let sigma_matches = self.evaluate_decoded_with_sigma(decoded.as_deref());
 
         PsAnalysisResult {
             command_line: truncate_for_display(command_line, 500),
@@ -177,7 +124,6 @@ impl PsAnalyzer {
             total_score,
             is_suspicious,
             decoded_content,
-            sigma_matches,
         }
     }
 
@@ -202,29 +148,6 @@ impl PsAnalyzer {
             }
         }
         out
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn evaluate_decoded_with_sigma(&self, decoded: Option<&str>) -> Vec<SigmaMatchInfo> {
-        let (engine, decoded) = match (self.sigma_engine.as_ref(), decoded) {
-            (Some(eng), Some(d)) if !d.is_empty() => (eng, d),
-            _ => return vec![],
-        };
-        let log = log_entry_from_decoded(decoded);
-        engine
-            .evaluate_log_entry(&log)
-            .into_iter()
-            .map(|m| SigmaMatchInfo {
-                rule_id: m.rule_id.clone(),
-                rule_title: m.rule_title.clone(),
-                level: m.level.clone(),
-            })
-            .collect()
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn evaluate_decoded_with_sigma(&self, _decoded: Option<&str>) -> Vec<SigmaMatchInfo> {
-        vec![]
     }
 
     /// Number of loaded psexposed indicators
@@ -252,32 +175,6 @@ impl PsAnalyzer {
             })
             .collect()
     }
-
-    /// Whether Sigma rules are loaded (decoded content will be analyzed)
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn has_sigma_rules(&self) -> bool {
-        self.sigma_engine.is_some()
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub fn has_sigma_rules(&self) -> bool {
-        false
-    }
-}
-
-/// Build a log entry for Sigma: CommandLine = decoded script, ProcessName = powershell.exe
-#[cfg(not(target_arch = "wasm32"))]
-fn log_entry_from_decoded(decoded: &str) -> LogEntry {
-    let mut fields = HashMap::new();
-    fields.insert(
-        "CommandLine".to_string(),
-        serde_json::Value::String(decoded.to_string()),
-    );
-    fields.insert(
-        "ProcessName".to_string(),
-        serde_json::Value::String("powershell.exe".to_string()),
-    );
-    LogEntry { fields }
 }
 
 fn truncate_for_display(s: &str, max_len: usize) -> String {
@@ -307,8 +204,6 @@ mod tests {
         let compiled = yaml.compile().unwrap();
         let analyzer = PsAnalyzer {
             indicators: vec![compiled],
-            #[cfg(not(target_arch = "wasm32"))]
-            sigma_engine: None,
         };
         let result = analyzer.analyze("powershell -c iex (Get-Content x.ps1)");
         assert!(result.is_suspicious);
@@ -319,11 +214,7 @@ mod tests {
 
     #[test]
     fn test_analyze_with_decoded_content() {
-        let analyzer = PsAnalyzer {
-            indicators: vec![],
-            #[cfg(not(target_arch = "wasm32"))]
-            sigma_engine: None,
-        };
+        let analyzer = PsAnalyzer { indicators: vec![] };
         let cmd = "powershell -enc ZQBjAGgAbwAgACIASABlAGwAbABvACIACgA=";
         let result = analyzer.analyze(cmd);
         assert!(result.decoded_content.is_some());

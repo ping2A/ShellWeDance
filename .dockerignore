@@ -9,18 +9,14 @@ wasm/pkg/
 *.swp
 *~
 
-# Docs and examples (not needed for WASM app)
-docs/
-examples/
+# Markdown not needed in image
 *.md
 !indicators/README.md
 
-# CI and dev scripts (build script not needed in image)
+# CI and dev scripts not needed in image
 .github/
-scripts/benchmark.sh
-scripts/test.sh
 scripts/build.sh
-scripts/generate_logs.sh
+scripts/run_wasm_ui.sh
 scripts/inject_rules_into_index.sh
 
 # Misc

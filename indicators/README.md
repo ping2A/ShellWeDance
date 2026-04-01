@@ -1,6 +1,6 @@
-# PowerShell Detection Indicators (psexposed format)
+# PowerShell detection indicators (psexposed format)
 
-This directory contains **all** [psexposed](https://github.com/avasero/psexposed/tree/main/indicators) indicators (92 YAML files) from [avasero/psexposed](https://github.com/avasero/psexposed). The analyzer **decodes** `-enc` / `-encodedcommand` (Base64 UTF-16LE) and can optionally run Sigma rules on the decoded content with `--sigma-rules-dir`. Each indicator file has:
+This directory contains **all** [psexposed](https://github.com/avasero/psexposed/tree/main/indicators) indicators (92 YAML files) from [avasero/psexposed](https://github.com/avasero/psexposed). The WASM analyzer **decodes** `-enc` / `-encodedcommand` (Base64 UTF-16LE) and matches indicators on both the raw command line and decoded script. Each indicator file has:
 
 - **name** – short label
 - **description** – optional longer description
@@ -10,37 +10,27 @@ This directory contains **all** [psexposed](https://github.com/avasero/psexposed
 - **technique** – MITRE ATT&CK technique ID(s), string or list (e.g. T1059.001, T1027)
 - **reference** – optional list of URLs
 
-Some psexposed regexes use very deep nesting or PCRE-only features; the loader skips indicators whose regex fails to compile in Rust (with a warning). `ps_indicator_plain_encoded_command.yaml` uses a Rust-compatible simplified pattern.
+Some psexposed regexes use very deep nesting or PCRE-only features; the loader skips indicators whose regex fails to compile in Rust. `ps_indicator_plain_encoded_command.yaml` uses a Rust-compatible simplified pattern.
 
-## Updating indicators
+## Using indicators in the browser
 
-This project ships with all psexposed indicators. To refresh from upstream:
+From the repo root, copy YAMLs into `wasm/indicators/` and refresh `manifest.json`:
+
+```bash
+./scripts/generate_rules_yml.sh
+```
+
+Then build and serve the UI (see [README.md](../README.md) or [wasm/README.md](../wasm/README.md)).
+
+## Updating indicators from upstream
 
 ```bash
 git clone --depth 1 https://github.com/avasero/psexposed.git
 cp psexposed/indicators/*.yaml ./indicators/
+./scripts/generate_rules_yml.sh
 ```
-
-## Examples (with cargo)
-
-```bash
-# Single command (decoded content shown when -enc is present)
-cargo run --bin shell-we-dance -- -r ./indicators -c "powershell -enc ZQBjAGgAbwAgACIASABlAGwAbABvACIACgA="
-
-# With Sigma rules on decoded content (optional; use your own Sigma rules directory)
-cargo run --bin shell-we-dance -- -r ./indicators --sigma-rules-dir /path/to/sigma-rules -c "powershell -enc ZQBjAGgAbwAgACIASABlAGwAbABvACIACgA="
-
-# From file (one command per line)
-cargo run --bin shell-we-dance -- -r ./indicators -f commands.txt --format json
-
-# From stdin
-echo "powershell iex (Get-Content x.ps1)" | cargo run --bin shell-we-dance -- -r ./indicators
-```
-
-After `cargo build --release`, you can use the binary directly: `./target/release/shell-we-dance -r ./indicators -c "..."`.
 
 ## References
 
-- [powershell.exposed](https://www.powershell.exposed/) – community-driven PowerShell detection
-- [psexposed indicators](https://github.com/avasero/psexposed/tree/main/indicators)
-- [Sigma rules (PowerShell)](https://github.com/SigmaHQ/sigma/tree/master/rules/windows/process_creation)
+- [powershell.exposed](https://www.powershell.exposed/) – community-driven PowerShell detection  
+- [psexposed indicators](https://github.com/avasero/psexposed/tree/main/indicators)  

@@ -1,42 +1,19 @@
 #!/bin/bash
+# Build and test the WASM workspace (shell-we-dance-ps + wasm crate).
 
-# Build script for Sigma Evaluator
-
-echo "================================"
-echo "Building Sigma Rule Evaluator"
-echo "================================"
+set -e
+echo "Shell We Dance — workspace build"
 echo ""
 
-# Check if Rust is installed
-if ! command -v cargo &> /dev/null; then
-    echo "Error: Rust is not installed."
-    echo "Please install Rust from https://rustup.rs"
-    exit 1
+if ! command -v cargo &>/dev/null; then
+  echo "Install Rust from https://rustup.rs"
+  exit 1
 fi
 
-echo "Rust version:"
-rustc --version
+cargo test --workspace
+cargo build --workspace --release
+
 echo ""
-
-# Build in release mode
-echo "Building in release mode (optimized)..."
-cargo build --release
-
-if [ $? -eq 0 ]; then
-    echo ""
-    echo "================================"
-    echo "Build successful!"
-    echo "================================"
-    echo ""
-    echo "Binary location: target/release/sigma-zero"
-    echo ""
-    echo "Run with:"
-    echo "  ./target/release/sigma-zero --help"
-    echo ""
-    echo "Example usage:"
-    echo "  ./target/release/sigma-zero -r ./examples/rules -l ./examples/logs"
-else
-    echo ""
-    echo "Build failed. Please check the error messages above."
-    exit 1
-fi
+echo "For the browser UI, install wasm-pack and run:"
+echo "  ./scripts/run_wasm_ui.sh 8080"
+echo ""

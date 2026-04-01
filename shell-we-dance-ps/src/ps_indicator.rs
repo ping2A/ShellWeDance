@@ -5,10 +5,14 @@
 use regex::Regex;
 use regex::RegexBuilder;
 use serde::Deserialize;
-use std::path::Path;
-use std::fs;
-use std::io;
 use anyhow::{Context, Result};
+
+#[cfg(not(target_arch = "wasm32"))]
+use std::fs;
+#[cfg(not(target_arch = "wasm32"))]
+use std::io;
+#[cfg(not(target_arch = "wasm32"))]
+use std::path::Path;
 
 /// Raw YAML structure for a single psexposed indicator
 #[derive(Debug, Clone, Deserialize)]
@@ -102,15 +106,18 @@ impl PsIndicatorYaml {
 }
 
 /// Load all psexposed-format YAML indicators from a directory (non-recursive).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn load_indicators_from_dir(dir: &Path) -> Result<Vec<CompiledPsIndicator>> {
     let (compiled, _) = load_indicators_from_dir_with_errors(dir)?;
     Ok(compiled)
 }
 
 /// Per-file load result for CLI debug: (filename, Ok(()) if loaded, Err(message) if failed).
+#[cfg(not(target_arch = "wasm32"))]
 pub type DirLoadResult = Vec<(String, Result<(), String>)>;
 
 /// Like `load_indicators_from_dir` but also returns per-file success/failure for debug output.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn load_indicators_from_dir_with_errors(
     dir: &Path,
 ) -> Result<(Vec<CompiledPsIndicator>, DirLoadResult), anyhow::Error> {
@@ -144,6 +151,7 @@ pub fn load_indicators_from_dir_with_errors(
 }
 
 /// Load one YAML file; may contain a single indicator (one document) or multiple (multi-doc).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn load_indicator_file(path: &Path) -> Result<Vec<CompiledPsIndicator>> {
     let content = fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
     load_indicators_from_str(&content)
@@ -193,6 +201,7 @@ pub fn load_indicators_from_yaml_strings_with_errors(
 }
 
 /// Read command lines from stdin (one per line) or from a file.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn read_command_lines(from: Option<&Path>) -> io::Result<Vec<String>> {
     use std::io::BufRead;
     let stdin = io::stdin();

@@ -1,0 +1,16 @@
+[package]
+name = "shell-we-dance-ps"
+version = "0.1.0"
+edition = "2021"
+description = "PowerShell command-line analysis (psexposed indicators, -enc decoding) for browser WASM"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+regex = "1.10"
+base64 = "0.21"
+anyhow = "1.0"
+tracing = "0.1"

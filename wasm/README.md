@@ -7,8 +7,14 @@ PowerShell command-line analyzer in the browser: paste a command, get indicator 
 Requires [Rust](https://rustup.rs/) and [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/).
 
 ```bash
-# From repo root
-wasm-pack build wasm --out-dir wasm/pkg --target web
+# From repo root (output is wasm/pkg; --out-dir is relative to the wasm crate)
+wasm-pack build wasm --release --out-dir pkg --target web
+```
+
+Or build, refresh indicators, and serve in one step:
+
+```bash
+./scripts/run_wasm_ui.sh 8080
 ```
 
 ## Generate indicator files and manifest
@@ -35,5 +41,5 @@ Open [http://localhost:8080](http://localhost:8080). The page fetches the manife
 ## Debug
 
 Open the browser console (F12 → Console). With debug enabled you’ll see `[ShellWeDance]` logs for: init, WASM load, manifest fetch, each rule fetch (e.g. `fetch rule { i, total, name }`), indicator count, and each analyze (result summary).
-</think><｜tool▁call▁begin｜>
-TodoWrite
+
+The browser build depends only on the **`shell-we-dance-ps`** crate (PowerShell indicators + decoding), not the Sigma rule engine.

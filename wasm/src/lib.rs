@@ -1,7 +1,7 @@
 //! WASM bindings for ShellWeDance: analyze PowerShell command lines in the browser.
 //! Indicators are loaded at runtime: fetch each file from indicators/ and call load_indicators_batch(json_array_of_yaml_strings).
 
-use sigma_zero::ps_analyzer::{PsAnalyzer, PsAnalysisResult};
+use shell_we_dance_ps::ps_analyzer::{PsAnalyzer, PsAnalysisResult};
 use wasm_bindgen::prelude::*;
 
 /// Per-rule load error (index in the batch, message).

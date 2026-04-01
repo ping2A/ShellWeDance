@@ -1,49 +1,36 @@
-# ShellWeDance: PowerShell command-line analyzer (WASM UI + CLI)
+# ShellWeDance: WASM PowerShell analyzer only (nginx)
 # Build: docker build -t shell-we-dance .
 # Run:   docker run -p 8080:80 shell-we-dance
-# Then open http://localhost:8080
+# Open:  http://localhost:8080/
 
-# -----------------------------------------------------------------------------
-# Stage 1: build CLI and WASM
-# -----------------------------------------------------------------------------
-FROM rust:1-bookworm AS builder
+FROM rust:1-bookworm AS wasm-builder
 
-# Install wasm-pack for building the browser WASM module
 RUN cargo install wasm-pack
 
 WORKDIR /app
 
-# Copy manifests and source
 COPY Cargo.toml Cargo.lock ./
-COPY src ./src
-COPY bin ./bin
+COPY shell-we-dance-ps ./shell-we-dance-ps
 COPY wasm ./wasm
-COPY indicators ./indicators
-COPY scripts ./scripts
 
-# Build release binaries (CLI)
-RUN cargo build --release
-
-# Build WASM for the browser UI (release; --out-dir is relative to the crate, not WORKDIR)
 RUN wasm-pack build wasm --release --out-dir pkg --target web
 
-# Copy indicators into wasm/indicators and generate manifest.json
+COPY indicators ./indicators
+COPY scripts/generate_rules_yml.sh ./scripts/generate_rules_yml.sh
 RUN bash scripts/generate_rules_yml.sh
 
-# -----------------------------------------------------------------------------
-# Stage 2: serve the WASM app with nginx
-# -----------------------------------------------------------------------------
 FROM nginx:alpine
 
-# Ensure .wasm is served with correct MIME type (required for Chrome/Windows)
-RUN echo "types { application/wasm wasm; }" > /etc/nginx/conf.d/wasm-mime.conf
+# Register .wasm without a server-level `types {}` block (that would drop .js MIME)
+RUN grep -q 'application/wasm' /etc/nginx/mime.types || \
+    sed -i '/application\/javascript[[:space:]]*js;/a\    application/wasm wasm;' /etc/nginx/mime.types
 
-# Serve the wasm app (index.html, pkg/, indicators/) at /
-COPY --from=builder /app/wasm /usr/share/nginx/html
+COPY docker/nginx-wasm.conf /etc/nginx/conf.d/default.conf
+COPY docker/entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
-# Optional: include CLI for scripting (e.g. docker run ... shell-we-dance -r /indicators -c "...")
-COPY --from=builder /app/target/release/shell-we-dance /usr/local/bin/
+COPY --from=wasm-builder /app/wasm /usr/share/nginx/html
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

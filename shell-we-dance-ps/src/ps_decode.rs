@@ -49,7 +49,6 @@ mod tests {
 
     #[test]
     fn test_decode_encoded_command() {
-        // "echo \"Hello\"" in UTF-16LE then base64 (PowerShell -enc)
         let cmd = "powershell -enc ZQBjAGgAbwAgACIASABlAGwAbABvACIACgA=";
         let decoded = decode_encoded_command(cmd).expect("decode");
         assert!(decoded.contains("echo"));
